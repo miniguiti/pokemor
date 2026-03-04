@@ -27,9 +27,11 @@ mostrar_gif <- function() {
 
   happy_icon <- file.path(reaction_root, "happy.png")
   heart_icon <- file.path(reaction_root, "heart.png")
+  pokeball_icon <- file.path(reaction_root, "pokeball.png")
 
   if (!file.exists(happy_icon)) stop("Arquivo 'happy.png' não encontrado em 'reaction'.")
   if (!file.exists(heart_icon)) stop("Arquivo 'heart.png' não encontrado em 'reaction'.")
+  if (!file.exists(pokeball_icon)) stop("Arquivo 'pokeball.png' não encontrado em 'reaction'.")
 
   gif_files <- list.files(
     gen4_root,
@@ -118,112 +120,104 @@ mostrar_gif <- function() {
     stop("Nenhum background encontrado em 'backgrounds'.")
   }
 
-  selected_pairs <- sprite_sets[sample(seq_len(nrow(sprite_sets)), 4), , drop = FALSE]
-  selected_background <- sample(background_files, 1)
-
-  background_path_lower <- tolower(selected_background)
-  theme_color <- if (grepl("/beach/", background_path_lower)) {
-    "#2E8BC0"
-  } else if (grepl("/castle/", background_path_lower)) {
-    "#6C757D"
-  } else if (grepl("/forest/", background_path_lower)) {
-    "#2D6A4F"
-  } else {
-    "#111111"
-  }
-
   viewer_dir <- tempfile("pokemor_viewer_")
   dir.create(viewer_dir, recursive = TRUE, showWarnings = FALSE)
 
-  bg_ext <- tools::file_ext(selected_background)
-
-  bg_name <- paste0("background.", bg_ext)
-
-  bg_target <- file.path(viewer_dir, bg_name)
   html_file <- file.path(viewer_dir, "scene.html")
-  happy_name <- "reaction_happy.png"
-  heart_name <- "reaction_heart.png"
 
-  file.copy(selected_background, bg_target, overwrite = TRUE)
-  file.copy(happy_icon, file.path(viewer_dir, happy_name), overwrite = TRUE)
-  file.copy(heart_icon, file.path(viewer_dir, heart_name), overwrite = TRUE)
+  asset_map <- new.env(parent = emptyenv())
+  asset_counter <- 0L
 
-  default_walk_names <- vapply(
-    seq_len(nrow(selected_pairs)),
-    function(index) {
-      ext <- tools::file_ext(selected_pairs$default_walk[index])
-      name <- paste0("pokemon_default_walk_", index, ".", ext)
-      file.copy(selected_pairs$default_walk[index], file.path(viewer_dir, name), overwrite = TRUE)
-      name
-    },
-    character(1)
-  )
+  copy_asset <- function(path, prefix) {
+    key <- normalizePath(path, winslash = "/", mustWork = TRUE)
 
-  default_idle_names <- vapply(
-    seq_len(nrow(selected_pairs)),
-    function(index) {
-      ext <- tools::file_ext(selected_pairs$default_idle[index])
-      name <- paste0("pokemon_default_idle_", index, ".", ext)
-      file.copy(selected_pairs$default_idle[index], file.path(viewer_dir, name), overwrite = TRUE)
-      name
-    },
-    character(1)
-  )
+    if (exists(key, envir = asset_map, inherits = FALSE)) {
+      return(get(key, envir = asset_map, inherits = FALSE))
+    }
 
-  shiny_walk_names <- vapply(
-    seq_len(nrow(selected_pairs)),
-    function(index) {
-      ext <- tools::file_ext(selected_pairs$shiny_walk[index])
-      name <- paste0("pokemon_shiny_walk_", index, ".", ext)
-      file.copy(selected_pairs$shiny_walk[index], file.path(viewer_dir, name), overwrite = TRUE)
-      name
-    },
-    character(1)
-  )
+    asset_counter <<- asset_counter + 1L
+    ext <- tools::file_ext(path)
+    file_name <- paste0(prefix, "_", asset_counter, ".", ext)
+    file.copy(path, file.path(viewer_dir, file_name), overwrite = TRUE)
+    assign(key, file_name, envir = asset_map)
+    file_name
+  }
 
-  shiny_idle_names <- vapply(
-    seq_len(nrow(selected_pairs)),
-    function(index) {
-      ext <- tools::file_ext(selected_pairs$shiny_idle[index])
-      name <- paste0("pokemon_shiny_idle_", index, ".", ext)
-      file.copy(selected_pairs$shiny_idle[index], file.path(viewer_dir, name), overwrite = TRUE)
-      name
-    },
-    character(1)
-  )
+  get_theme_color <- function(background_path) {
+    background_path_lower <- tolower(background_path)
 
-  lanes_bottom <- c(8, 70, 132, 194)
-  lanes_duration <- c(6.0, 5.0, 6.8, 5.7)
-  lanes_delay <- c(0.0, -1.1, -2.0, -0.6)
+    if (grepl("/beach/", background_path_lower)) {
+      return("#2E8BC0")
+    }
+    if (grepl("/castle/", background_path_lower)) {
+      return("#6C757D")
+    }
+    if (grepl("/forest/", background_path_lower)) {
+      return("#2D6A4F")
+    }
 
-  runners_html <- paste0(
+    "#111111"
+  }
+
+  happy_name <- copy_asset(happy_icon, "reaction")
+  heart_name <- copy_asset(heart_icon, "reaction")
+  pokeball_name <- copy_asset(pokeball_icon, "reaction")
+
+  scene_count <- max(6L, min(12L, nrow(sprite_sets)))
+  scene_configs <- vector("list", scene_count)
+
+  for (scene_index in seq_len(scene_count)) {
+    selected_rows <- sample(seq_len(nrow(sprite_sets)), 4, replace = FALSE)
+    selected_pairs <- sprite_sets[selected_rows, , drop = FALSE]
+    selected_background <- sample(background_files, 1)
+
+    scene_configs[[scene_index]] <- list(
+      theme = get_theme_color(selected_background),
+      background = copy_asset(selected_background, "background"),
+      pokemons = lapply(seq_len(nrow(selected_pairs)), function(index) {
+        list(
+          default_walk = copy_asset(selected_pairs$default_walk[index], "pokemon_dw"),
+          default_idle = copy_asset(selected_pairs$default_idle[index], "pokemon_di"),
+          shiny_walk = copy_asset(selected_pairs$shiny_walk[index], "pokemon_sw"),
+          shiny_idle = copy_asset(selected_pairs$shiny_idle[index], "pokemon_si")
+        )
+      })
+    )
+  }
+
+  scene_configs_js <- paste0(
     vapply(
-      seq_along(default_walk_names),
-      function(index) {
-        direction <- if (index %% 2 == 0) "reverse" else "alternate"
+      scene_configs,
+      function(scene) {
+        pokemon_js <- vapply(
+          scene$pokemons,
+          function(pokemon) {
+            paste0(
+              "{defaultWalk:'", pokemon$default_walk,
+              "',defaultIdle:'", pokemon$default_idle,
+              "',shinyWalk:'", pokemon$shiny_walk,
+              "',shinyIdle:'", pokemon$shiny_idle, "'}"
+            )
+          },
+          character(1)
+        )
+
         paste0(
-          "<div class='pokemon-runner' style='bottom:", lanes_bottom[index], "px; animation-duration:",
-          lanes_duration[index], "s; animation-delay:", lanes_delay[index], "s; animation-direction:", direction, ";'>",
-          "<img class='reaction-happy' src='", happy_name, "' style='display:none;position:absolute;bottom:108px;left:50%;transform:translateX(-50%);width:56px;height:56px;object-fit:contain;image-rendering:pixelated;pointer-events:none;'>",
-          "<img class='reaction-heart' src='", heart_name, "' style='display:none;position:absolute;bottom:148px;left:50%;transform:translateX(-50%);width:36px;height:36px;object-fit:contain;image-rendering:pixelated;pointer-events:none;'>",
-          "<img class='pokemon-sprite' src='", default_walk_names[index],
-          "' data-default-walk='", default_walk_names[index],
-          "' data-default-idle='", default_idle_names[index],
-          "' data-shiny-walk='", shiny_walk_names[index],
-          "' data-shiny-idle='", shiny_idle_names[index],
-          "' style='width:112px;height:112px;object-fit:contain;image-rendering:pixelated;cursor:pointer;'>",
-          "</div>"
+          "{theme:'", scene$theme,
+          "',background:'", scene$background,
+          "',pokemons:[", paste(pokemon_js, collapse = ","), "]}"
         )
       },
       character(1)
     ),
-    collapse = ""
+    collapse = ","
   )
 
   html_content <- paste0(
     "<html><head><meta charset='UTF-8'>
       <style>
         .scene { position: relative; width: 640px; height: 360px; overflow: hidden; }
+        .runners-layer { position: absolute; inset: 0; }
         .pokemon-runner {
           position: absolute;
           left: 10px;
@@ -238,57 +232,150 @@ mostrar_gif <- function() {
           from { transform: translateX(0); }
           to { transform: translateX(518px); }
         }
+        .reroll-btn {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          z-index: 20;
+          width: 60px;
+          height: 60px;
+          border: 0;
+          background: transparent;
+          padding: 0;
+          cursor: pointer;
+        }
+        .reroll-btn img {
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          image-rendering: pixelated;
+        }
       </style>
       <script>
         document.addEventListener('DOMContentLoaded', function () {
-          var sprites = document.querySelectorAll('.pokemon-sprite');
-          sprites.forEach(function (sprite) {
-            var runner = sprite.closest('.pokemon-runner');
-            var happy = runner.querySelector('.reaction-happy');
-            var heart = runner.querySelector('.reaction-heart');
+          var scenes = [",
+    scene_configs_js,
+    "];
+          var lanesBottom = [8, 70, 132, 194];
+          var lanesDuration = [6.0, 5.0, 6.8, 5.7];
+          var lanesDelay = [0.0, -1.1, -2.0, -0.6];
+
+          var sceneEl = document.getElementById('scene');
+          var runnersLayer = document.getElementById('runners-layer');
+          var rerollBtn = document.getElementById('reroll-btn');
+          var currentSceneIndex = 0;
+
+          function buildRunner(pokemon, index) {
+            var runner = document.createElement('div');
+            runner.className = 'pokemon-runner';
+            runner.style.bottom = lanesBottom[index] + 'px';
+            runner.style.animationDuration = lanesDuration[index] + 's';
+            runner.style.animationDelay = lanesDelay[index] + 's';
+            runner.style.animationDirection = (index % 2 === 0) ? 'alternate' : 'reverse';
+
+            var happy = document.createElement('img');
+            happy.className = 'reaction-happy';
+            happy.src = '", happy_name, "';
+            happy.style.display = 'none';
+            happy.style.position = 'absolute';
+            happy.style.bottom = '108px';
+            happy.style.left = '50%';
+            happy.style.transform = 'translateX(-50%)';
+            happy.style.width = '56px';
+            happy.style.height = '56px';
+            happy.style.objectFit = 'contain';
+            happy.style.imageRendering = 'pixelated';
+            happy.style.pointerEvents = 'none';
+
+            var heart = document.createElement('img');
+            heart.className = 'reaction-heart';
+            heart.src = '", heart_name, "';
+            heart.style.display = 'none';
+            heart.style.position = 'absolute';
+            heart.style.bottom = '148px';
+            heart.style.left = '50%';
+            heart.style.transform = 'translateX(-50%)';
+            heart.style.width = '36px';
+            heart.style.height = '36px';
+            heart.style.objectFit = 'contain';
+            heart.style.imageRendering = 'pixelated';
+            heart.style.pointerEvents = 'none';
+
+            var sprite = document.createElement('img');
+            sprite.className = 'pokemon-sprite';
+            sprite.src = pokemon.defaultWalk;
+            sprite.style.width = '112px';
+            sprite.style.height = '112px';
+            sprite.style.objectFit = 'contain';
+            sprite.style.imageRendering = 'pixelated';
+            sprite.style.cursor = 'pointer';
+
             var shinyMode = false;
             var heartMode = false;
 
             sprite.addEventListener('mouseenter', function () {
-              if (happy) {
-                happy.style.display = heartMode ? 'none' : 'block';
-              }
-              if (heart) {
-                heart.style.display = heartMode ? 'block' : 'none';
-              }
-
-              sprite.src = shinyMode ? sprite.dataset.shinyIdle : sprite.dataset.defaultIdle;
+              happy.style.display = heartMode ? 'none' : 'block';
+              heart.style.display = heartMode ? 'block' : 'none';
+              sprite.src = shinyMode ? pokemon.shinyIdle : pokemon.defaultIdle;
             });
 
             sprite.addEventListener('mouseleave', function () {
-              if (happy) {
-                happy.style.display = 'none';
-              }
-              if (heart) {
-                heart.style.display = 'none';
-              }
-
-              sprite.src = shinyMode ? sprite.dataset.shinyWalk : sprite.dataset.defaultWalk;
+              happy.style.display = 'none';
+              heart.style.display = 'none';
+              sprite.src = shinyMode ? pokemon.shinyWalk : pokemon.defaultWalk;
             });
 
             sprite.addEventListener('click', function () {
               shinyMode = true;
               heartMode = true;
-              if (happy) {
-                happy.style.display = 'none';
-              }
-              if (heart) {
-                heart.style.display = 'block';
-              }
-              sprite.src = sprite.dataset.shinyWalk;
+              happy.style.display = 'none';
+              heart.style.display = 'block';
+              sprite.src = pokemon.shinyWalk;
             });
+
+            runner.appendChild(happy);
+            runner.appendChild(heart);
+            runner.appendChild(sprite);
+
+            return runner;
+          }
+
+          function renderScene(index) {
+            var scene = scenes[index];
+            document.body.style.background = scene.theme;
+            sceneEl.style.backgroundImage = 'url(' + scene.background + ')';
+            sceneEl.style.border = '3px solid ' + scene.theme;
+            sceneEl.style.boxShadow = '0 0 18px ' + scene.theme;
+
+            runnersLayer.innerHTML = '';
+            scene.pokemons.forEach(function (pokemon, idx) {
+              runnersLayer.appendChild(buildRunner(pokemon, idx));
+            });
+          }
+
+          rerollBtn.addEventListener('click', function () {
+            var next = currentSceneIndex;
+
+            if (scenes.length > 1) {
+              while (next === currentSceneIndex) {
+                next = Math.floor(Math.random() * scenes.length);
+              }
+            }
+
+            currentSceneIndex = next;
+            renderScene(currentSceneIndex);
           });
+
+          renderScene(currentSceneIndex);
         });
       </script>
     </head>
-     <body style='margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:", theme_color, ";'>
-       <div class='scene' style='background-image:url(\"", bg_name, "\");background-size:640px 360px;background-position:center;background-repeat:no-repeat;border:3px solid ", theme_color, ";box-shadow:0 0 18px ", theme_color, ";'>
-         ", runners_html, "
+     <body style='margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#111;'>
+       <div class='scene' id='scene' style='background-size:640px 360px;background-position:center;background-repeat:no-repeat;'>
+         <button class='reroll-btn' id='reroll-btn' title='Novo cenário'>
+           <img src='", pokeball_name, "'>
+         </button>
+         <div class='runners-layer' id='runners-layer'></div>
        </div>
      </body></html>"
   )
