@@ -17,11 +17,11 @@ mostrar_gif <- function() {
     ""
   }
 
-  gen4_root <- get_extdata_dir("gen4")
+  gen1_root <- get_extdata_dir("gen1")
   backgrounds_root <- get_extdata_dir("backgrounds")
   reaction_root <- get_extdata_dir("reaction")
 
-  if (!nzchar(gen4_root)) stop("Pasta 'gen4' não encontrada.")
+  if (!nzchar(gen1_root)) stop("Pasta 'gen1' não encontrada.")
   if (!nzchar(backgrounds_root)) stop("Pasta 'backgrounds' não encontrada.")
   if (!nzchar(reaction_root)) stop("Pasta 'reaction' não encontrada.")
 
@@ -36,7 +36,7 @@ mostrar_gif <- function() {
   if (!file.exists(add_icon)) stop("Arquivo 'light-add.svg' não encontrado em 'reaction'.")
 
   gif_files <- list.files(
-    gen4_root,
+    gen1_root,
     pattern = "\\.gif$",
     recursive = TRUE,
     full.names = TRUE,
@@ -44,7 +44,7 @@ mostrar_gif <- function() {
   )
 
   if (length(gif_files) == 0) {
-    stop("Nenhum GIF encontrado em 'gen4'.")
+    stop("Nenhum GIF encontrado em 'gen1'.")
   }
 
   build_sprite_set <- function(pokemon_dir) {
@@ -96,7 +96,7 @@ mostrar_gif <- function() {
     )
   }
 
-  pokemon_dirs <- list.dirs(gen4_root, recursive = FALSE, full.names = TRUE)
+  pokemon_dirs <- list.dirs(gen1_root, recursive = FALSE, full.names = TRUE)
   sprite_list <- lapply(pokemon_dirs, build_sprite_set)
   sprite_list <- sprite_list[!vapply(sprite_list, is.null, logical(1))]
 
