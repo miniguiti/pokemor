@@ -19,9 +19,17 @@ mostrar_gif <- function() {
 
   gen4_root <- get_extdata_dir("gen4")
   backgrounds_root <- get_extdata_dir("backgrounds")
+  reaction_root <- get_extdata_dir("reaction")
 
   if (!nzchar(gen4_root)) stop("Pasta 'gen4' não encontrada.")
   if (!nzchar(backgrounds_root)) stop("Pasta 'backgrounds' não encontrada.")
+  if (!nzchar(reaction_root)) stop("Pasta 'reaction' não encontrada.")
+
+  happy_icon <- file.path(reaction_root, "happy.png")
+  heart_icon <- file.path(reaction_root, "heart.png")
+
+  if (!file.exists(happy_icon)) stop("Arquivo 'happy.png' não encontrado em 'reaction'.")
+  if (!file.exists(heart_icon)) stop("Arquivo 'heart.png' não encontrado em 'reaction'.")
 
   gif_files <- list.files(
     gen4_root,
@@ -35,17 +43,64 @@ mostrar_gif <- function() {
     stop("Nenhum GIF encontrado em 'gen4'.")
   }
 
-  walk_gif_files <- gif_files[
-    grepl("walk", basename(gif_files), ignore.case = TRUE)
-  ]
+  build_sprite_set <- function(pokemon_dir) {
+    pokemon_gifs <- list.files(
+      pokemon_dir,
+      pattern = "\\.gif$",
+      full.names = TRUE,
+      ignore.case = TRUE
+    )
 
-  if (length(walk_gif_files) == 0) {
-    stop("Nenhum GIF com 'walk' no nome foi encontrado em 'gen4'.")
+    default_walk <- pokemon_gifs[
+      grepl("default", basename(pokemon_gifs), ignore.case = TRUE) &
+        grepl("walk", basename(pokemon_gifs), ignore.case = TRUE) &
+        !grepl("walk_left", basename(pokemon_gifs), ignore.case = TRUE)
+    ]
+
+    if (length(default_walk) == 0) {
+      return(NULL)
+    }
+
+    default_walk <- sample(default_walk, 1)
+
+    default_idle <- file.path(
+      dirname(default_walk),
+      sub("walk", "idle", basename(default_walk), ignore.case = TRUE)
+    )
+
+    shiny_walk <- file.path(
+      dirname(default_walk),
+      sub("default", "shiny", basename(default_walk), ignore.case = TRUE)
+    )
+
+    shiny_idle <- file.path(
+      dirname(default_idle),
+      sub("default", "shiny", basename(default_idle), ignore.case = TRUE)
+    )
+
+    if (!file.exists(default_idle) || !file.exists(shiny_walk) || !file.exists(shiny_idle)) {
+      return(NULL)
+    }
+
+    data.frame(
+      pokemon = basename(pokemon_dir),
+      default_walk = default_walk,
+      default_idle = default_idle,
+      shiny_walk = shiny_walk,
+      shiny_idle = shiny_idle,
+      stringsAsFactors = FALSE
+    )
   }
 
-  if (length(walk_gif_files) < 4) {
-    stop("São necessários pelo menos 4 GIFs com 'walk' em 'gen4'.")
+  pokemon_dirs <- list.dirs(gen4_root, recursive = FALSE, full.names = TRUE)
+  sprite_list <- lapply(pokemon_dirs, build_sprite_set)
+  sprite_list <- sprite_list[!vapply(sprite_list, is.null, logical(1))]
+
+  if (length(sprite_list) < 4) {
+    stop("São necessários pelo menos 4 pokémons com GIFs default/shiny (walk+idle).")
   }
+
+  sprite_sets <- do.call(rbind, sprite_list)
 
   background_files <- list.files(
     backgrounds_root,
@@ -63,7 +118,7 @@ mostrar_gif <- function() {
     stop("Nenhum background encontrado em 'backgrounds'.")
   }
 
-  selected_gifs <- sample(walk_gif_files, 4, replace = FALSE)
+  selected_pairs <- sprite_sets[sample(seq_len(nrow(sprite_sets)), 4), , drop = FALSE]
   selected_background <- sample(background_files, 1)
 
   background_path_lower <- tolower(selected_background)
@@ -86,15 +141,52 @@ mostrar_gif <- function() {
 
   bg_target <- file.path(viewer_dir, bg_name)
   html_file <- file.path(viewer_dir, "scene.html")
+  happy_name <- "reaction_happy.png"
+  heart_name <- "reaction_heart.png"
 
   file.copy(selected_background, bg_target, overwrite = TRUE)
+  file.copy(happy_icon, file.path(viewer_dir, happy_name), overwrite = TRUE)
+  file.copy(heart_icon, file.path(viewer_dir, heart_name), overwrite = TRUE)
 
-  gif_names <- vapply(
-    seq_along(selected_gifs),
+  default_walk_names <- vapply(
+    seq_len(nrow(selected_pairs)),
     function(index) {
-      ext <- tools::file_ext(selected_gifs[index])
-      name <- paste0("pokemon_", index, ".", ext)
-      file.copy(selected_gifs[index], file.path(viewer_dir, name), overwrite = TRUE)
+      ext <- tools::file_ext(selected_pairs$default_walk[index])
+      name <- paste0("pokemon_default_walk_", index, ".", ext)
+      file.copy(selected_pairs$default_walk[index], file.path(viewer_dir, name), overwrite = TRUE)
+      name
+    },
+    character(1)
+  )
+
+  default_idle_names <- vapply(
+    seq_len(nrow(selected_pairs)),
+    function(index) {
+      ext <- tools::file_ext(selected_pairs$default_idle[index])
+      name <- paste0("pokemon_default_idle_", index, ".", ext)
+      file.copy(selected_pairs$default_idle[index], file.path(viewer_dir, name), overwrite = TRUE)
+      name
+    },
+    character(1)
+  )
+
+  shiny_walk_names <- vapply(
+    seq_len(nrow(selected_pairs)),
+    function(index) {
+      ext <- tools::file_ext(selected_pairs$shiny_walk[index])
+      name <- paste0("pokemon_shiny_walk_", index, ".", ext)
+      file.copy(selected_pairs$shiny_walk[index], file.path(viewer_dir, name), overwrite = TRUE)
+      name
+    },
+    character(1)
+  )
+
+  shiny_idle_names <- vapply(
+    seq_len(nrow(selected_pairs)),
+    function(index) {
+      ext <- tools::file_ext(selected_pairs$shiny_idle[index])
+      name <- paste0("pokemon_shiny_idle_", index, ".", ext)
+      file.copy(selected_pairs$shiny_idle[index], file.path(viewer_dir, name), overwrite = TRUE)
       name
     },
     character(1)
@@ -106,13 +198,20 @@ mostrar_gif <- function() {
 
   runners_html <- paste0(
     vapply(
-      seq_along(gif_names),
+      seq_along(default_walk_names),
       function(index) {
         direction <- if (index %% 2 == 0) "reverse" else "alternate"
         paste0(
           "<div class='pokemon-runner' style='bottom:", lanes_bottom[index], "px; animation-duration:",
           lanes_duration[index], "s; animation-delay:", lanes_delay[index], "s; animation-direction:", direction, ";'>",
-          "<img src='", gif_names[index], "' style='width:112px;height:112px;object-fit:contain;image-rendering:pixelated;'>",
+          "<img class='reaction-happy' src='", happy_name, "' style='display:none;position:absolute;bottom:108px;left:50%;transform:translateX(-50%);width:56px;height:56px;object-fit:contain;image-rendering:pixelated;pointer-events:none;'>",
+          "<img class='reaction-heart' src='", heart_name, "' style='display:none;position:absolute;bottom:148px;left:50%;transform:translateX(-50%);width:36px;height:36px;object-fit:contain;image-rendering:pixelated;pointer-events:none;'>",
+          "<img class='pokemon-sprite' src='", default_walk_names[index],
+          "' data-default-walk='", default_walk_names[index],
+          "' data-default-idle='", default_idle_names[index],
+          "' data-shiny-walk='", shiny_walk_names[index],
+          "' data-shiny-idle='", shiny_idle_names[index],
+          "' style='width:112px;height:112px;object-fit:contain;image-rendering:pixelated;cursor:pointer;'>",
           "</div>"
         )
       },
@@ -140,6 +239,52 @@ mostrar_gif <- function() {
           to { transform: translateX(518px); }
         }
       </style>
+      <script>
+        document.addEventListener('DOMContentLoaded', function () {
+          var sprites = document.querySelectorAll('.pokemon-sprite');
+          sprites.forEach(function (sprite) {
+            var runner = sprite.closest('.pokemon-runner');
+            var happy = runner.querySelector('.reaction-happy');
+            var heart = runner.querySelector('.reaction-heart');
+            var shinyMode = false;
+            var heartMode = false;
+
+            sprite.addEventListener('mouseenter', function () {
+              if (happy) {
+                happy.style.display = heartMode ? 'none' : 'block';
+              }
+              if (heart) {
+                heart.style.display = heartMode ? 'block' : 'none';
+              }
+
+              sprite.src = shinyMode ? sprite.dataset.shinyIdle : sprite.dataset.defaultIdle;
+            });
+
+            sprite.addEventListener('mouseleave', function () {
+              if (happy) {
+                happy.style.display = 'none';
+              }
+              if (heart) {
+                heart.style.display = 'none';
+              }
+
+              sprite.src = shinyMode ? sprite.dataset.shinyWalk : sprite.dataset.defaultWalk;
+            });
+
+            sprite.addEventListener('click', function () {
+              shinyMode = true;
+              heartMode = true;
+              if (happy) {
+                happy.style.display = 'none';
+              }
+              if (heart) {
+                heart.style.display = 'block';
+              }
+              sprite.src = sprite.dataset.shinyWalk;
+            });
+          });
+        });
+      </script>
     </head>
      <body style='margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:", theme_color, ";'>
        <div class='scene' style='background-image:url(\"", bg_name, "\");background-size:640px 360px;background-position:center;background-repeat:no-repeat;border:3px solid ", theme_color, ";box-shadow:0 0 18px ", theme_color, ";'>
