@@ -1,4 +1,4 @@
-Name: Pokemon Pet
-Description: Abre um GIF na aba Viewer
-Binding: mostrar_gif
+Name: r-pokemon
+Description: Abre um espaço Pokemon na aba Viewer
+Binding: gerar_pokemon
 Interactive: false

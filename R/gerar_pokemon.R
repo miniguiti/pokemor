@@ -1,9 +1,9 @@
 #' Mostrar GIF no Viewer
 #'
 #' @export
-mostrar_gif <- function() {
+gerar_pokemon <- function() {
   get_extdata_dir <- function(folder_name) {
-    package_dir <- system.file("extdata", folder_name, package = "pokemor")
+    package_dir <- system.file("extdata", folder_name, package = "rpokemon")
     local_dir <- file.path(getwd(), "inst", "extdata", folder_name)
 
     if (nzchar(package_dir) && dir.exists(package_dir)) {
@@ -122,7 +122,7 @@ mostrar_gif <- function() {
     stop("Nenhum background encontrado em 'backgrounds'.")
   }
 
-  viewer_dir <- tempfile("pokemor_viewer_")
+  viewer_dir <- tempfile("r-pokemon_viewer_")
   dir.create(viewer_dir, recursive = TRUE, showWarnings = FALSE)
 
   html_file <- file.path(viewer_dir, "scene.html")
@@ -219,13 +219,13 @@ mostrar_gif <- function() {
   html_content <- paste0(
     "<html><head><meta charset='UTF-8'>
       <style>
-        .scene { position: relative; width: 640px; height: 360px; overflow: hidden; }
+        .scene { position: relative; width: 512px; height: 288px; overflow: hidden; }
         .runners-layer { position: absolute; inset: 0; }
         .pokemon-runner {
           position: absolute;
           left: 10px;
-          width: 112px;
-          height: 112px;
+          width: 90px;
+          height: 90px;
           display: flex;
           align-items: flex-end;
           justify-content: center;
@@ -233,7 +233,7 @@ mostrar_gif <- function() {
         }
         @keyframes run-lr {
           from { transform: translateX(0); }
-          to { transform: translateX(518px); }
+          to { transform: translateX(412px); }
         }
         .reroll-btn {
           z-index: 20;
@@ -282,7 +282,7 @@ mostrar_gif <- function() {
           var scenes = [",
     scene_configs_js,
     "];
-          var lanesBottom = [8, 60, 112, 164, 216];
+          var lanesBottom = [6, 48, 90, 131, 172];
           var lanesDuration = [6.0, 5.0, 6.8, 5.7, 6.3];
           var lanesDelay = [0.0, -1.1, -2.0, -0.6, -1.6];
 
@@ -306,11 +306,11 @@ mostrar_gif <- function() {
             happy.src = '", happy_name, "';
             happy.style.display = 'none';
             happy.style.position = 'absolute';
-            happy.style.bottom = '108px';
+            happy.style.bottom = '86px';
             happy.style.left = '50%';
             happy.style.transform = 'translateX(-50%)';
-            happy.style.width = '56px';
-            happy.style.height = '56px';
+            happy.style.width = '44px';
+            happy.style.height = '44px';
             happy.style.objectFit = 'contain';
             happy.style.imageRendering = 'pixelated';
             happy.style.pointerEvents = 'none';
@@ -320,11 +320,11 @@ mostrar_gif <- function() {
             heart.src = '", heart_name, "';
             heart.style.display = 'none';
             heart.style.position = 'absolute';
-            heart.style.bottom = '148px';
+            heart.style.bottom = '118px';
             heart.style.left = '50%';
             heart.style.transform = 'translateX(-50%)';
-            heart.style.width = '36px';
-            heart.style.height = '36px';
+            heart.style.width = '28px';
+            heart.style.height = '28px';
             heart.style.objectFit = 'contain';
             heart.style.imageRendering = 'pixelated';
             heart.style.pointerEvents = 'none';
@@ -332,8 +332,8 @@ mostrar_gif <- function() {
             var sprite = document.createElement('img');
             sprite.className = 'pokemon-sprite';
             sprite.src = pokemon.defaultWalk;
-            sprite.style.width = '112px';
-            sprite.style.height = '112px';
+            sprite.style.width = '90px';
+            sprite.style.height = '90px';
             sprite.style.objectFit = 'contain';
             sprite.style.imageRendering = 'pixelated';
             sprite.style.cursor = 'pointer';
@@ -410,7 +410,7 @@ mostrar_gif <- function() {
       </script>
     </head>
      <body style='margin:0;display:flex;justify-content:center;align-items:center;min-height:100vh;background:#111;'>
-       <div class='scene' id='scene' style='background-size:640px 360px;background-position:center;background-repeat:no-repeat;'>
+       <div class='scene' id='scene' style='background-size:512px 288px;background-position:center;background-repeat:no-repeat;'>
          <div class='control-bar'>
            <button class='add-btn' id='add-btn' title='Adicionar pokémon'>
              <img src='", add_name, "'>
